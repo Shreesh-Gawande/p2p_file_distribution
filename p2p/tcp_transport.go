@@ -3,21 +3,35 @@ package p2p
 import (
 	"fmt"
 	"net"
-	"sync"
+	
 )
 
 type TCPTransportOpts struct {
 	ListenAddr string
 	Handshake  HandShakeFunc
 	Decoder    Decoder
+	OnPeer     func(Peer) error
 }
 
 type TCPTransport struct {
 	TCPTransportOpts
 	listener net.Listener
+	rpcch    chan RPC
 
-	mu    sync.RWMutex
-	peers map[net.Addr]Peer
+
+}
+
+func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
+	return &TCPTransport{
+		TCPTransportOpts: opts,
+		rpcch:            make(chan RPC),
+	}
+}
+
+// Consume implements transport interface which will return read only channel
+// for reading the incomming message recieved from another peer in the network
+func (t *TCPTransport) Consume() <-chan RPC {
+	return t.rpcch
 }
 
 // TCPPeer represents the remote node over a TCP established connection
@@ -35,10 +49,9 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	}
 }
 
-func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
-	return &TCPTransport{
-		TCPTransportOpts: opts,
-	}
+// Close implements Peer interface to close the underlying connection
+func (p *TCPPeer) Close() error {
+	return p.conn.Close()
 }
 
 func (t *TCPTransport) ListenAndAccept() error {
@@ -66,22 +79,30 @@ func (t *TCPTransport) startAcceptLoop() {
 }
 
 func (t *TCPTransport) handleConn(conn net.Conn) {
+	var err error
 	peer := NewTCPPeer(conn, true)
-	err := t.Handshake(peer)
+	defer func ()  {
+	    fmt.Printf("dropping the connection %s", err)
+		conn.Close()	
+	}()
+	err = t.Handshake(peer)
 	if err != nil {
-		conn.Close()
-		fmt.Printf("handshake failed %v\n", err)
 		return
 	}
+  if t.OnPeer !=nil {
+	if err=t.OnPeer(peer); err!=nil{
+		return 
+	}
+  }
 
-	msg := &Message{}
+	rpc := RPC{}
 	for {
-		if err := t.Decoder.Decode(conn, msg); err != nil {
-			fmt.Printf("TCP error: %s \n", &err)
-			continue
+		if err := t.Decoder.Decode(conn, &rpc); err != nil {
+			fmt.Printf("TCP error: %v \n", &err)
+			return
 		}
 
-		msg.From=conn.RemoteAddr()
-		fmt.Printf(" message: %v \n", msg)
+		rpc.From = conn.RemoteAddr()
+		t.rpcch <- rpc
 	}
 }

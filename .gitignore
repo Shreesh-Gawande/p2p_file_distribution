@@ -1,0 +1,15 @@
+# Go build output
+/bin
+*.exe
+*.test
+
+# Go modules
+/go.sum
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
