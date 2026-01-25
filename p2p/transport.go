@@ -9,11 +9,13 @@ import (
 type Peer interface{
 	net.Conn
 	Send([]byte) error
+	CloseStream()
 }
 
 // Transport is anything that handles communication between nodes in network.
 // This can be of the form TCP, UDP and websockets
 type Transport interface {
+	Addr()      string
 	Dial(adddr string) error
 	ListenAndAccept() error
 	Consume() <-chan RPC

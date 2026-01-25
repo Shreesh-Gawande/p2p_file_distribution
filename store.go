@@ -131,6 +131,6 @@ func (s *Storage) writeStream(key string, r io.Reader)(int64 , error)  {
 	if err != nil {
 		return 0,err
 	}
-	log.Printf("written(%d) bytes to disc %s ", n, fullPathWithRoot)
+	
 	return n,nil
 }
