@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -93,22 +93,22 @@ func (s *Storage) Delete(key string) error {
 	return os.RemoveAll(firstPathwithroot)
 }
 
-func (s *Storage) Read(key string) (io.Reader, error) {
-	f, err := s.readStream(key)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, f)
-
-	return buf, err
+func (s *Storage) Read(key string) (int64 ,io.Reader, error) {
+	return s.readStream(key)
 }
 
-func (s *Storage) readStream(key string) (io.ReadCloser, error) {
+func (s *Storage) readStream(key string) ( int64,io.ReadCloser, error) {
 	pathKey := s.PathTransformFunc(key)
 	pathKeyWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.FullPath())
-	return os.Open(pathKeyWithRoot)
+	file, err:= os.Open(pathKeyWithRoot)
+	if err!=nil{
+		return 0, nil, err
+	}
+	n, err :=file.Stat()
+	if err !=nil{
+		return 0, nil, err
+	}
+	return n.Size(),file, nil
 }
 func (s *Storage) Write(key string, r io.Reader) (int64 , error) {
 	return s.writeStream(key, r)

@@ -1,12 +1,9 @@
 package main
 
 import (
-
-	//	"bytes"
-	"bytes"
 	"file_distribution_system/p2p"
 	"fmt"
-
+	"io/ioutil"
 	"log"
 	"time"
 )
@@ -42,14 +39,14 @@ func main() {
 	go s2.Start()
 
 	time.Sleep(5 * time.Second)
-	for i:=0 ; i<10 ; i++ {
-     	data := bytes.NewReader([]byte("my big data file is here"))
-	    s2.Store(fmt.Sprintf("myprivateData %d",i), data)
+
+    /*  	data := bytes.NewReader([]byte("my big data file is here"))
+	    s2.Store("coolpicture.jpg", data)
 		time.Sleep(time.Millisecond*5)
-	}
+	 */
 
 
-	/* 	r, err:=s2.Get("myprivateData")
+		r, err:=s2.Get("coolpicture.jpg")
 	if err!=nil{
 		log.Fatal(err)
 	}
@@ -58,7 +55,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println(string(b))  */
+	fmt.Println(string(b))  
 
-	select {}
 }
