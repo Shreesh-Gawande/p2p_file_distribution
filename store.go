@@ -57,9 +57,9 @@ type Storage struct {
 	StoreOpts
 }
 
-func (s *Storage) Has(key string) bool {
+func (s *Storage) Has(id string,key string) bool {
 	pathname := s.PathTransformFunc(key)
-	pathNameWithRoot := fmt.Sprintf("%s/%s", s.Root, pathname.FirstPathName())
+	pathNameWithRoot := fmt.Sprintf("%s/%s/%s", s.Root,id, pathname.FirstPathName())
 	_, err := os.Stat(pathNameWithRoot)
 	return !os.IsNotExist(err)
 }
@@ -82,24 +82,24 @@ func (s *Storage) Clear() error {
 	return os.RemoveAll(s.Root)
 }
 
-func (s *Storage) Delete(key string) error {
+func (s *Storage) Delete(id string,key string) error {
 	pathname := s.PathTransformFunc(key)
 
 	defer func() {
 		log.Printf("deleted [%s] from disk", pathname.FullPath())
 	}()
-	firstPathwithroot := fmt.Sprintf("%s/%s", s.Root, pathname.FirstPathName())
+	firstPathwithroot := fmt.Sprintf("%s/%s/%s", s.Root,id, pathname.FirstPathName())
 
 	return os.RemoveAll(firstPathwithroot)
 }
 
-func (s *Storage) Read(key string) (int64 ,io.Reader, error) {
-	return s.readStream(key)
+func (s *Storage) Read(id string,key string) (int64 ,io.Reader, error) {
+	return s.readStream(id,key)
 }
 
-func (s *Storage) readStream(key string) ( int64,io.ReadCloser, error) {
+func (s *Storage) readStream(id string,key string) ( int64,io.ReadCloser, error) {
 	pathKey := s.PathTransformFunc(key)
-	pathKeyWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.FullPath())
+	pathKeyWithRoot := fmt.Sprintf("%s/%s/%s", s.Root,id, pathKey.FullPath())
 	file, err:= os.Open(pathKeyWithRoot)
 	if err!=nil{
 		return 0, nil, err
@@ -110,12 +110,12 @@ func (s *Storage) readStream(key string) ( int64,io.ReadCloser, error) {
 	}
 	return n.Size(),file, nil
 }
-func (s *Storage) Write(key string, r io.Reader) (int64 , error) {
-	return s.writeStream(key, r)
+func (s *Storage) Write(id string,key string, r io.Reader) (int64 , error) {
+	return s.writeStream(id,key, r)
 
 }
-func(s *Storage) WriteDecrypt(encKey []byte, key string, r io.Reader)(int64, error){
-    f, err:=s.openFileForWriting(key)
+func(s *Storage) WriteDecrypt(id string,encKey []byte, key string, r io.Reader)(int64, error){
+    f, err:=s.openFileForWriting(id,key)
 	if err != nil {
 		return 0,err
 	}
@@ -126,18 +126,18 @@ func(s *Storage) WriteDecrypt(encKey []byte, key string, r io.Reader)(int64, err
 	return int64(n),nil
 }
 
-func(s *Storage) openFileForWriting(key string)(*os.File, error){
+func(s *Storage) openFileForWriting(id string,key string)(*os.File, error){
 	pathname := s.PathTransformFunc(key)
-	pathNameWithRoot := fmt.Sprintf("%s/%s", s.Root, pathname.Pathname)
+	pathNameWithRoot := fmt.Sprintf("%s/%s/%s", s.Root,id, pathname.Pathname)
 	if err := os.MkdirAll(pathNameWithRoot, os.ModePerm); err != nil {
 		return nil, err
 	}
-	fullPathWithRoot := fmt.Sprintf("%s/%s", s.Root, pathname.FullPath())
+	fullPathWithRoot := fmt.Sprintf("%s/%s/%s", s.Root,id, pathname.FullPath())
 	 return  os.Create(fullPathWithRoot)
 }
 
-func (s *Storage) writeStream(key string, r io.Reader)(int64 , error)  {
-    f, err:=s.openFileForWriting(key)
+func (s *Storage) writeStream(id string,key string, r io.Reader)(int64 , error)  {
+    f, err:=s.openFileForWriting(id,key)
 	if err != nil {
 		return 0,err
 	}
