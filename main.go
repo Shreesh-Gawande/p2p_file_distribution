@@ -1,13 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"file_distribution_system/p2p"
-	"fmt"
-	"io/ioutil"
-
-	//o/ioutil"
+	"flag"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -20,9 +19,9 @@ func makeserver(listenAddr string, nodes ...string) *FileServer {
 	}
 
 	tcpTransport := p2p.NewTCPTransport(tcpTransportOpts)
-	folderName := listenAddr[1:]
+	folderName := strings.NewReplacer(":", "_", ".", "_").Replace(strings.TrimPrefix(listenAddr, ":"))
 	fileTransport := FileServerOpts{
-		EncKey: newEncryptionKey(),
+		EncKey:            newEncryptionKey(),
 		StorageRoot:       folderName + "_network",
 		PathTransformFunc: CASPathTransformFunc,
 		Transport:         tcpTransport,
@@ -34,53 +33,51 @@ func makeserver(listenAddr string, nodes ...string) *FileServer {
 }
 
 func main() {
-	s1 := makeserver(":3000", "")
-	s2 := makeserver(":4000", ":3000")
-	s3:=makeserver(":5000", ":4000", ":3000")
+	listenAddr := flag.String("listen", ":3000", "TCP address to listen on (for example :3000)")
+	peerAddr := flag.String("peer", "", "optional peer address to connect to (for example 192.168.1.20:3000)")
+	sendPath := flag.String("send", "", "optional path of a file to send to connected peers")
+	flag.Parse()
+
+	server := makeserver(*listenAddr, *peerAddr)
+	log.Printf("Starting file-sharing node on %s", *listenAddr)
+	startErr := make(chan error, 1)
 	go func() {
-		log.Fatal(s1.Start())
-		time.Sleep(1 * time.Second)
-		//log.Fatal(s2.Start())
+		startErr <- server.Start()
 	}()
-		go func() {
-		//log.Fatal(s1.Start())
-		//time.Sleep(1 * time.Second)
-		log.Fatal(s2.Start())
-	}()
-	time.Sleep(2 * time.Second)
-	go s3.Start()
 
-	time.Sleep(5 * time.Second)
-
-	for i:=0; i<20 ; i++ {
-		key:=fmt.Sprintf("pictured.png(%d)",i)
-		data := bytes.NewReader([]byte("my big data file is here"))
-	    s3.Store(key, data) 
-		
-		if err:=s3.store.Delete(s3.ID,key) ; err!=nil{
+	if *sendPath == "" {
+		if err := <-startErr; err != nil {
 			log.Fatal(err)
 		}
-		r, err:=s3.Get(key)
-	if err!=nil{
+		return
+	}
+
+	if err := server.WaitForPeer(30 * time.Second); err != nil {
+		server.Stop()
+		<-startErr
 		log.Fatal(err)
 	}
-	b, err:= ioutil.ReadAll(r)
-	if err !=nil{
+
+	file, err := os.Open(*sendPath)
+	if err != nil {
+		server.Stop()
+		<-startErr
 		log.Fatal(err)
 	}
 
-	fmt.Println(string(b)) 
-
+	if err := server.Store(filepath.Base(*sendPath), file); err != nil {
+		server.Stop()
+		<-startErr
+		log.Fatal(err)
 	}
-    
-  
-
-
-	
-
-		 
-	 
-
- 
-
+	if err := file.Close(); err != nil {
+		server.Stop()
+		<-startErr
+		log.Fatal(err)
+	}
+	log.Printf("Sent %s to connected peer(s)", filepath.Base(*sendPath))
+	server.Stop()
+	if err := <-startErr; err != nil {
+		log.Fatal(err)
+	}
 }

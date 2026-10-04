@@ -23,16 +23,16 @@ type TCPTransport struct {
 func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 	return &TCPTransport{
 		TCPTransportOpts: opts,
-		rpcch:            make(chan RPC,1024),
+		rpcch:            make(chan RPC, 1024),
 	}
 }
+
 //Adder impliments the Transport interface return the address
 //the transport is accepting connections
 
-func(t *TCPTransport) Addr() string{
+func (t *TCPTransport) Addr() string {
 	return t.ListenAddr
 }
-
 
 // Consume implements transport interface which will return read only channel
 // for reading the incomming message recieved from another peer in the network
@@ -62,18 +62,24 @@ type TCPPeer struct {
 	//if we make the connection outbound true else false
 	outbound bool
 
-	wg *sync.WaitGroup
+	wg            *sync.WaitGroup
+	streamStarted chan struct{}
 }
 
-func(p *TCPPeer) CloseStream() {
+func (p *TCPPeer) CloseStream() {
 	p.wg.Done()
+}
+
+func (p *TCPPeer) WaitForStream() {
+	<-p.streamStarted
 }
 
 func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	return &TCPPeer{
-		Conn:     conn,
-		outbound: outbound,
-		wg:       &sync.WaitGroup{},
+		Conn:          conn,
+		outbound:      outbound,
+		wg:            &sync.WaitGroup{},
+		streamStarted: make(chan struct{}, 1),
 	}
 }
 
@@ -126,7 +132,6 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 		}
 	}
 
-	
 	for {
 		rpc := RPC{}
 		err := t.Decoder.Decode(conn, &rpc)
@@ -136,6 +141,7 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 		rpc.From = conn.RemoteAddr().String()
 		if rpc.Stream {
 			peer.wg.Add(1)
+			peer.streamStarted <- struct{}{}
 			fmt.Printf("[%s] incomming stream, waiting ...\n", conn.RemoteAddr())
 			peer.wg.Wait()
 			fmt.Printf("[%s] stream closed, resuming read loop \n", conn.RemoteAddr())
@@ -143,7 +149,6 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 
 		}
 
-		
 		t.rpcch <- rpc
 
 		fmt.Println("stream done continueing normal reed loop")
